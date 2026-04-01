@@ -1,13 +1,6 @@
 ## Description
 A brief description of your project, its purpose, and what problem it solves.
 
-## Installation
-Follow these steps to install the project:
-
-```bash
-npm install
-```
-
 ## Usage
 Run the project using:
 
