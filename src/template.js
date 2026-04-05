@@ -26,7 +26,7 @@ export default function getDefaultContent(section, projectType, context = {}) {
         case "folder structure":
             return getFolderStructureContent(fileTree);
         case "license":
-            return "This project is licensed under the MIT License.";
+            return "Add your license information here.";
         case "built by":
             return `Built with ❤️ by @${(username || "Unknown").trim()}`;
         default:
@@ -74,7 +74,6 @@ function getUsageContent(projectType, scripts, isMonorepo) {
 
             for (const [name, locations] of scripts) {
                 if (isMonorepo && locations.length > 1) {
-                    // Show which packages have this script
                     const packageNames = locations.map(l => l.package).join(", ");
                     scriptEntries.push(`- \`npm run ${name}\` (available in: ${packageNames})`);
                 } else if (locations.length === 1) {
@@ -107,7 +106,6 @@ function getDependenciesContent(dependencies, packages) {
 }
 
 function getFolderStructureContent(fileTree) {
-    console.log("getFolderStructureContent received:", fileTree ? `object with ${Object.keys(fileTree).length} keys` : fileTree);
     if (!fileTree || typeof fileTree !== "object" || Object.keys(fileTree).length === 0) {
         return "Project structure:\n\n```\n(No file tree provided)\n```";
     }

@@ -1,20 +1,14 @@
 import { getOctokit } from "./github.js";
 import processReadme from "../src/processReadme.js";
 
-/**
- * Scans the repository tree recursively to find all package.json files
- * Also returns the full tree data for building file tree
- */
 async function findAllPackageJsonPaths(octokit, owner, repo) {
     try {
-        // Get the default branch
         const { data: repoData } = await octokit.request("GET /repos/{owner}/{repo}", {
             owner,
             repo,
         });
         const defaultBranch = repoData.default_branch;
 
-        // Get the tree recursively using request method
         const { data: treeData } = await octokit.request("GET /repos/{owner}/{repo}/git/trees/{tree_sha}", {
             owner,
             repo,
@@ -22,7 +16,6 @@ async function findAllPackageJsonPaths(octokit, owner, repo) {
             recursive: "true",
         });
 
-        // Filter for package.json files (exclude node_modules)
         const packageJsonPaths = treeData.tree
             .filter(item =>
                 item.type === "blob" &&
@@ -38,9 +31,6 @@ async function findAllPackageJsonPaths(octokit, owner, repo) {
     }
 }
 
-/**
- * Fetches and parses a single package.json file from the repository
- */
 async function fetchPackageJson(octokit, owner, repo, path) {
     try {
         const { data } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
@@ -56,64 +46,62 @@ async function fetchPackageJson(octokit, owner, repo, path) {
     }
 }
 
-/**
- * Fetches all package.json files and returns a packages array along with file tree
- */
 async function fetchAllPackages(octokit, owner, repo) {
     const { packageJsonPaths, treeData } = await findAllPackageJsonPaths(octokit, owner, repo);
-
-    console.log(`Found ${packageJsonPaths.length} package.json files, treeData exists: ${!!treeData}`);
-
-    // Build file tree from tree data
     const fileTree = treeData ? buildFileTree(treeData) : null;
 
     if (packageJsonPaths.length === 0) {
         return { packages: [], fileTree };
     }
 
-    // Fetch all package.json files in parallel
     const results = await Promise.all(
         packageJsonPaths.map(path => fetchPackageJson(octokit, owner, repo, path))
     );
 
-    // Filter out failed fetches
     const packages = results.filter(pkg => pkg.content !== null);
-
     return { packages, fileTree };
 }
 
-/**
- * Aggregates dependencies across all packages (deduplicated)
- */
 function aggregateDependencies(packages) {
+    const ignoreList = [
+        'eslint', 'prettier', 'husky', 'lint-staged', 'stylelint',
+        'typescript', 'vite', 'webpack', 'rollup', 'parcel', 'esbuild',
+        'babel', 'tsc', 'ts-node', 'tsx', 'nodemon', 'concurrently',
+        'jest', 'mocha', 'chai', 'vitest', 'cypress', 'playwright', 'supertest',
+        'postcss', 'autoprefixer', 'sass', 'less', 'dotenv', 'cross-env', 'rimraf',
+        'black', 'flake8', 'pylint', 'mypy', 'isort', 'autopep8', 'bandit',
+        'pytest', 'coverage', 'tox', 'mock', 'hypothesis', 'pytest-cov',
+        'setuptools', 'wheel', 'twine', 'build',
+        'python-dotenv', 'pip-tools', 'virtualenv', 'pre-commit'
+    ];
+
     const depsSet = new Set();
 
     for (const pkg of packages) {
         const { content } = pkg;
         if (content?.dependencies) {
-            Object.keys(content.dependencies).forEach(dep => depsSet.add(dep));
-        }
-        if (content?.devDependencies) {
-            Object.keys(content.devDependencies).forEach(dep => depsSet.add(dep));
+            Object.keys(content.dependencies).forEach(dep => {
+                if (dep.startsWith('@types/')) return;
+                if (dep.startsWith('@babel/')) return;
+                if (dep.startsWith('@vitejs/')) return;
+                if (dep.startsWith('types-')) return;
+                if (ignoreList.includes(dep)) return;
+                depsSet.add(dep);
+            });
         }
     }
 
     return Array.from(depsSet).sort();
 }
 
-/**
- * Builds a file tree object from the repository tree data
- */
-function buildFileTree(treeData) {
+function buildFileTree(treeData, maxDepth = 4) {
     const fileTree = {};
 
     if (!treeData?.tree || !Array.isArray(treeData.tree)) {
-        console.warn("Invalid tree data received");
         return fileTree;
     }
 
     for (const item of treeData.tree) {
-        // Skip node_modules and .git directory (but not .gitignore, .github, etc.)
         if (
             item.path === "node_modules" ||
             item.path.startsWith("node_modules/") ||
@@ -124,14 +112,16 @@ function buildFileTree(treeData) {
         }
 
         const parts = item.path.split("/");
+        const depth = Math.min(parts.length, maxDepth);
         let current = fileTree;
 
-        for (let i = 0; i < parts.length; i++) {
+        for (let i = 0; i < depth; i++) {
             const part = parts[i];
-            const isFile = i === parts.length - 1 && item.type === "blob";
+            const isLastLevel = i === depth - 1;
+            const isActualFile = i === parts.length - 1 && item.type === "blob";
 
-            if (isFile) {
-                current[part] = null; // Files are null leaves
+            if (isLastLevel && isActualFile) {
+                current[part] = null;
             } else {
                 if (!current[part]) {
                     current[part] = {};
@@ -141,13 +131,9 @@ function buildFileTree(treeData) {
         }
     }
 
-    console.log(`Built file tree with ${Object.keys(fileTree).length} top-level entries`);
     return fileTree;
 }
 
-/**
- * Aggregates scripts across all packages (deduplicated, with package context)
- */
 function aggregateScripts(packages) {
     const scriptsMap = new Map();
 
@@ -176,7 +162,6 @@ export async function runBot(payload) {
 
         const octokit = await getOctokit(installationId);
 
-        // Fetch README
         const { data } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
             owner,
             repo,
@@ -184,18 +169,11 @@ export async function runBot(payload) {
         });
 
         const content = Buffer.from(data.content, "base64").toString();
-
-        // Scan repository for all package.json files and build file tree
         const { packages, fileTree } = await fetchAllPackages(octokit, owner, repo);
-
-        // Aggregate data from all packages
         const dependencies = aggregateDependencies(packages);
         const scripts = aggregateScripts(packages);
-
-        // Determine project type based on presence of any package.json
         const projectType = packages.length > 0 ? "node" : "unknown";
 
-        // Build context with multi-package support
         const context = {
             packages,
             dependencies,
@@ -212,7 +190,6 @@ export async function runBot(payload) {
             return;
         }
 
-        // Commit updated README back to repo
         await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", {
             owner,
             repo,
