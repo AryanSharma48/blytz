@@ -1,11 +1,11 @@
 {
   "name": "blytz",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "bin": {
     "blytz": "./bin/cli.js"
   },
-  "readme" : "README-NPM.md",
-  "files" : [
+  "readme": "README-NPM.md",
+  "files": [
     "bin/",
     "src/",
     "README-NPM.md"
