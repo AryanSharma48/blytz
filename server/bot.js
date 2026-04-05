@@ -8,6 +8,7 @@ export async function runBot(payload) {
         const repo = payload.repository.name;
 
         const octokit = await getOctokit(installationId);
+        console.log("Octokit keys:", Object.keys(octokit));
 
         const { data } = await octokit.rest.repos.getContent({
             owner,

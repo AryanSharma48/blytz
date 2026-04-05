@@ -1,12 +1,11 @@
-// server/github.js
-
 import { App } from "@octokit/app";
 
-export async function getOctokit(installationId) {
-    const app = new App({
-        appId: process.env.APP_ID,
-        privateKey: process.env.PRIVATE_KEY,
-    });
+const app = new App({
+    appId: process.env.APP_ID,
+    privateKey: process.env.PRIVATE_KEY.replace(/\\n/g, '\n'),
+});
 
-    return await app.getInstallationOctokit(installationId);
+export async function getOctokit(installationId) {
+    const octokit = await app.getInstallationOctokit(installationId);
+    return octokit;
 }
