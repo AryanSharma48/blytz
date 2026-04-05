@@ -8,33 +8,39 @@
   "files": [
     "bin/",
     "src/",
-    "README-NPM.md"
+    "bin/README-NPM.md"
   ],
   "description": "An automated CLI tool to fix and maintain project READMEs",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "prepublishOnly": "node scripts/sync-readme.js prepublish",
+    "postpublish": "node scripts/sync-readme.js postpublish"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AryanSharma48/readme-auto-fixer.git"
   },
   "keywords": [
+    "blytz",
     "cli",
     "readme",
+    "documentation",
     "automation",
     "github",
+    "npm",
     "bot",
     "readmefixer",
-    "readmeauto",
+    "readme-generator",
+    "devtools",
+    "markdown",
+    "workflow",
+    "productivity",
+    "automated-docs",
+    "repository-manager",
+    "scaffold",
     "readme-maintainer",
-    "readme-updater",
-    "readme-helper",
-    "readme-fixer",
-    "readme-bot",
-    "readme-automation",
-    "readme-enhancer",
-    "readme-improver"
+    "readme-updater"
   ],
   "author": "Aryan Sharma",
   "license": "MIT",
