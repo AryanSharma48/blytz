@@ -1,31 +1,26 @@
-import fs from "fs";
-import path from "path";
+// recursively builds a tree string from a file tree object
+function generateTree(fileTree, prefix = "") {
+    if (!fileTree || typeof fileTree !== "object") return "";
 
-function generateTree(dir, prefix = "") {
-    const files = fs.readdirSync(dir);
-
+    const entries = Object.entries(fileTree);
     let tree = "";
 
-    files.forEach((file, index) => {
-        // skip node_modules and .git
-        if (file === "node_modules" || file === ".git") return;
+    entries.forEach(([name, value], index) => {
+        if (name === "node_modules" || name === ".git") return;
 
-        const fullPath = path.join(dir, file);
-        const isLast = index === files.length - 1;
-
+        const isLast = index === entries.length - 1;
         const connector = isLast ? "└── " : "├── ";
+        tree += `${prefix}${connector}${name}\n`;
 
-        tree += `${prefix}${connector}${file}\n`;
-
-        if (fs.statSync(fullPath).isDirectory()) {
-            const newPrefix = prefix + (isLast ? "    " : "│   ");
-            tree += generateTree(fullPath, newPrefix);
+        // recurse into directories
+        if (value && typeof value === "object") {
+            tree += generateTree(value, prefix + (isLast ? "    " : "│   "));
         }
     });
 
     return tree;
 }
 
-export default function getProjectStructure() {
-    return "```\n" + generateTree(".") + "```";
+export default function getProjectStructure(fileTree) {
+    return "```\n" + generateTree(fileTree) + "```";
 }
