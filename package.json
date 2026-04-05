@@ -1,8 +1,16 @@
 {
-  "name": "readme-auto-fixer",
+  "name": "blytz",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "bin": {
+    "blytz": "./bin/cli.js"
+  },
+  "readme" : "README-NPM.md",
+  "files" : [
+    "bin/",
+    "src/",
+    "README-NPM.md"
+  ],
+  "description": "An automated CLI tool to fix and maintain project READMEs",
   "type": "module",
   "scripts": {
     "start": "node src/index.js"
@@ -11,9 +19,25 @@
     "type": "git",
     "url": "git+https://github.com/AryanSharma48/readme-auto-fixer.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "cli",
+    "readme",
+    "automation",
+    "github",
+    "bot",
+    "readmefixer",
+    "readmeauto",
+    "readme-maintainer",
+    "readme-updater",
+    "readme-helper",
+    "readme-fixer",
+    "readme-bot",
+    "readme-automation",
+    "readme-enhancer",
+    "readme-improver"
+  ],
+  "author": "Aryan Sharma",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/AryanSharma48/readme-auto-fixer/issues"
   },

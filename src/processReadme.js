@@ -4,8 +4,10 @@ import getDefaultContent from "./template.js";
 //Core engine: processes README content and returns updated version
 export default function processReadme(content, projectType, context = {}) {
 
+    const normalizedContent = (content || "").replace(/^##(?=\S)/gm, "## ");
+
     // Split into sections
-    const sections = content.split("## ");
+    const sections = normalizedContent.split("## ");
     const sectionMap = {};
 
     // Extract intro (title + description)
@@ -45,11 +47,12 @@ export default function processReadme(content, projectType, context = {}) {
     // Add / update sections
     requiredSections.forEach(section => {
         const newContent = getDefaultContent(section, projectType, context);
+        const currentContent = (sectionMap[section] || "").trim();
 
-        if (!(section in sectionMap)) {
+        if (!currentContent) {
             sectionMap[section] = newContent;
         } else if (autoManaged.includes(section)) {
-            if (isDifferent(sectionMap[section], newContent)) {
+            if (isDifferent(currentContent, newContent)) {
                 sectionMap[section] = newContent;
             }
         }
