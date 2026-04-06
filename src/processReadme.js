@@ -3,6 +3,7 @@ import getDefaultContent from "./template.js";
 
 //Core engine: processes README content and returns updated version
 export default function processReadme(content, projectType, context = {}) {
+    const { titleContent = "" } = context ?? {};
 
     const normalizedContent = (content || "").replace(/^##(?=\S)/gm, "## ");
 
@@ -12,6 +13,7 @@ export default function processReadme(content, projectType, context = {}) {
 
     // Extract intro (title + description)
     const intro = sections[0].trim();
+    const finalIntro = titleContent ? `# ${titleContent}` : intro;
 
     // Parse sections
     sections.slice(1).forEach(section => {
@@ -65,7 +67,7 @@ export default function processReadme(content, projectType, context = {}) {
             .join(" ");
 
     // Rebuild README
-    let newReadme = intro ? intro + "\n\n" : "";
+    let newReadme = finalIntro ? finalIntro + "\n\n" : "";
 
     // Ordered sections
     requiredSections.forEach(section => {

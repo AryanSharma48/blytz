@@ -2,6 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import readline from 'readline/promises';
 
 import processReadme from '../src/processReadme.js';
 
@@ -80,45 +81,63 @@ function getLicenseName(licenseContent) {
     return firstLine || '';
 }
 
-console.log("Scanning for project files...");
+async function promptForTitleAndDescription() {
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+    });
 
-const targetDir = process.cwd();
-const readmePath = path.join(targetDir, 'README.md');
-const packageJsonPath = path.join(targetDir, 'package.json');
-const requirementsPath = path.join(targetDir, 'requirements.txt');
-const licensePath = path.join(targetDir, 'LICENSE');
-const readmeExists = fs.existsSync(readmePath);
-const hasPackageJson = fs.existsSync(packageJsonPath);
-const hasRequirements = fs.existsSync(requirementsPath);
-const hasLicense = fs.existsSync(licensePath);
-
-if (!readmeExists && !shouldInit && !shouldForce) {
-    console.error("Error: No README.md found in this directory. Try --init.");
-    process.exit(1);
+    try {
+        const titleContent = (await rl.question('Add title: ')).trim();
+        const descriptionContent = (await rl.question('Add description: ')).trim();
+        return { titleContent, descriptionContent };
+    } finally {
+        rl.close();
+    }
 }
 
-if (readmeExists && shouldInit && !shouldForce) {
-    console.error("README.md already exists. Try --force.");
-    process.exit(1);
-}
+async function main() {
+    console.log("Scanning for project files...");
 
-if (!hasPackageJson && !hasRequirements) {
-    console.error("Error: No package.json or requirements.txt found in this directory.");
-    process.exit(1);
-}
+    const targetDir = process.cwd();
+    const readmePath = path.join(targetDir, 'README.md');
+    const packageJsonPath = path.join(targetDir, 'package.json');
+    const requirementsPath = path.join(targetDir, 'requirements.txt');
+    const licensePath = path.join(targetDir, 'LICENSE');
+    const readmeExists = fs.existsSync(readmePath);
+    const hasPackageJson = fs.existsSync(packageJsonPath);
+    const hasRequirements = fs.existsSync(requirementsPath);
+    const hasLicense = fs.existsSync(licensePath);
 
-console.log("Files found. Processing README...");
+    if (!readmeExists && !shouldInit && !shouldForce) {
+        console.error("Error: No README.md found in this directory. Try --init.");
+        process.exit(1);
+    }
 
-try {
+    if (readmeExists && shouldInit && !shouldForce) {
+        console.error("README.md already exists. Try --force.");
+        process.exit(1);
+    }
+
+    if (!hasPackageJson && !hasRequirements) {
+        console.error("Error: No package.json or requirements.txt found in this directory.");
+        process.exit(1);
+    }
+
+    console.log("Files found. Processing README...");
+
     if (shouldForce && readmeExists) {
         fs.unlinkSync(readmePath);
     }
 
-    // 1. Read the raw text of both files
     const readmeContent = fs.existsSync(readmePath) ? fs.readFileSync(readmePath, 'utf-8') : '';
     const fileTree = buildFileTree(targetDir);
     const projectName = path.basename(targetDir);
     const licenseName = hasLicense ? getLicenseName(fs.readFileSync(licensePath, 'utf-8')) : '';
+    const shouldPromptMetadata = !shouldUpdate;
+    const { titleContent, descriptionContent } = shouldPromptMetadata
+        ? await promptForTitleAndDescription()
+        : { titleContent: '', descriptionContent: '' };
     let context;
     let projectType;
 
@@ -132,6 +151,8 @@ try {
             dependencies: collectDependencies(packageJson),
             scripts: collectScripts(packageJson),
             fileTree,
+            titleContent,
+            descriptionContent,
             licenseName,
             username: packageJson.author || process.env.USERNAME || 'Unknown Author',
             projectName: packageJson.name || projectName,
@@ -147,6 +168,8 @@ try {
             dependencies: collectPythonDependencies(requirementsContent),
             scripts: new Map(),
             fileTree,
+            titleContent,
+            descriptionContent,
             licenseName,
             username: process.env.USERNAME || 'Unknown Author',
             projectName,
@@ -156,15 +179,15 @@ try {
         projectType = 'python';
     }
 
-    // 3. Feed everything into your pure engine
     const updatedReadme = processReadme(readmeContent, projectType, context);
 
-    // 4. Overwrite the existing README.md with the new content
     fs.writeFileSync(readmePath, updatedReadme, 'utf-8');
 
     console.log("Success! README.md has been auto-fixed.");
-
-} catch (error) {
-    console.error("An error occurred during processing:", error.message);
-    process.exit(1);
 }
+
+(main()
+    .catch(error => {
+        console.error("An error occurred during processing:", error.message);
+        process.exit(1);
+    }));

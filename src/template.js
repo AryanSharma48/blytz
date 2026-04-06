@@ -6,6 +6,7 @@ export default function getDefaultContent(section, projectType, context = {}) {
         dependencies = [],
         scripts = new Map(),
         fileTree = null,
+        descriptionContent = "",
         licenseName = "",
         username = "Unknown",
         projectName = "this project",
@@ -17,7 +18,7 @@ export default function getDefaultContent(section, projectType, context = {}) {
 
     switch (safeSection) {
         case "description":
-            return getDescriptionContent(safeProjectType, projectName, isMonorepo);
+            return getDescriptionContent(safeProjectType, projectName, isMonorepo, descriptionContent);
         case "installation":
             return getInstallationContent(safeProjectType, packages, isMonorepo);
         case "usage":
@@ -35,7 +36,11 @@ export default function getDefaultContent(section, projectType, context = {}) {
     }
 }
 
-function getDescriptionContent(projectType, projectName, isMonorepo) {
+function getDescriptionContent(projectType, projectName, isMonorepo, descriptionContent) {
+    if (descriptionContent) {
+        return descriptionContent;
+    }
+
     const name = projectName || "this project";
     if (projectType === "node") {
         if (isMonorepo) {
