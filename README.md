@@ -2,6 +2,10 @@
 
 Blytz is a Github Bot / CLI Tool that will auto update you Readme on every commit, as well as manual updates using the CLI Tool, by installing using npm i -g blytz.
 
+## Description
+
+blytz is a Node.js application. Add a brief description of its purpose and what problem it solves.
+
 ## Installation
 
 Follow these steps to install the project:
