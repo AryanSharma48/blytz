@@ -15,8 +15,6 @@ npm install
 You can run the following scripts:
 
 - `npm start`
-- `npm run prepublishOnly`
-- `npm run postpublish`
 
 ## Dependencies
 
