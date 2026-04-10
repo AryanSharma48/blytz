@@ -60,6 +60,11 @@ export function collectScripts(packages = []) {
         const packageDir = pkg.path === "package.json" ? "(root)" : pkg.path.replace("/package.json", "");
 
         for (const [name, command] of Object.entries(pkg?.content?.scripts || {})) {
+
+            if(name !=="start"){
+                continue;
+            }
+
             if (!scripts.has(name)) {
                 scripts.set(name, []);
             }

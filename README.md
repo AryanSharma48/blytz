@@ -1,6 +1,6 @@
-# Blytz : GitHub Bot / CLI Tool
+# blytz
 
-Blytz is a Github Bot / CLI Tool that will auto update you Readme on every commit, as well as manual updates using the CLI Tool, by installing using npm i -g blytz.
+blytz is a Node.js application. Add a brief description of its purpose and what problem it solves.
 
 ## Installation
 
@@ -15,8 +15,6 @@ npm install
 You can run the following scripts:
 
 - `npm start`
-- `npm run prepublishOnly`
-- `npm run postpublish`
 
 ## Dependencies
 
@@ -24,6 +22,7 @@ This project uses the following dependencies:
 
 - @octokit/app
 - @octokit/rest
+- dotenv
 - express
 
 ## Folder Structure
@@ -32,13 +31,13 @@ Project structure:
 
 ```
 ├── .gitignore
-├── LICENSE
-├── README.md
 ├── bin
-│   ├── README-NPM.md
-│   └── cli.js
+│   ├── cli.js
+│   └── README-NPM.md
+├── LICENSE
 ├── package-lock.json
 ├── package.json
+├── README.md
 ├── scripts
 │   └── sync-readme.js
 ├── server

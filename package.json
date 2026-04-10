@@ -13,7 +13,7 @@
   "description": "An automated CLI tool to fix and maintain project READMEs",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node server/server.js",
     "prepublishOnly": "node scripts/sync-readme.js prepublish",
     "postpublish": "node scripts/sync-readme.js postpublish"
   },
