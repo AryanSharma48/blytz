@@ -14,11 +14,6 @@ import {
 } from '../src/readmeContext.js';
 
 const args = process.argv.slice(2);
-const shouldShowHelp = args.includes('--help') || args.includes('-h');
-const shouldInit = args.includes('--init');
-const shouldForce = args.includes('--force');
-const shouldUpdate = args.length === 0 || args.includes('--update');
-const hasAction = shouldUpdate || shouldInit || shouldForce;
 
 const supportsColor = process.stdout.isTTY && process.env.NO_COLOR !== '1';
 const ANSI = {
@@ -36,7 +31,6 @@ function colorize(text, ...codes) {
     if (!supportsColor) {
         return text;
     }
-
     return `${codes.join('')}${text}${ANSI.reset}`;
 }
 
@@ -47,15 +41,72 @@ function formatLabel(label, color) {
 function printHelp(output = console.log) {
     output([
         formatLabel('Usage', ANSI.blue),
-        `  ${colorize('blytz', ANSI.bold, ANSI.green)} ${colorize('[command]', ANSI.dim)}`,
+        `  ${colorize('blytz', ANSI.bold, ANSI.green)} ${colorize('[path] [options]', ANSI.dim)}`,
         '',
-        formatLabel('Commands', ANSI.blue),
-        `  ${colorize('--update', ANSI.yellow)}         ${colorize('Update the existing README.md using project metadata.', ANSI.dim)}`,
+        formatLabel('Commands / Options', ANSI.blue),
+        `  ${colorize('--update', ANSI.yellow)}         ${colorize('Update the existing README.md using project metadata. (Default)', ANSI.dim)}`,
         `  ${colorize('--init', ANSI.yellow)}           ${colorize('Create a new README.md and prompt for title and description.', ANSI.dim)}`,
         `  ${colorize('--force', ANSI.yellow)}          ${colorize('Replace the existing README.md with a newly generated one.', ANSI.dim)}`,
+        `  ${colorize('--dry-run, -d', ANSI.yellow)}    ${colorize('Print the generated README to stdout instead of writing to disk.', ANSI.dim)}`,
+        `  ${colorize('--depth, -D <num>', ANSI.yellow)} ${colorize('Specify directory structure tree rendering depth (default: 3).', ANSI.dim)}`,
         `  ${colorize('--help, -h', ANSI.yellow)}       ${colorize('Show this help message.', ANSI.dim)}`,
         '',
     ].join('\n'));
+}
+
+// Parse custom depth option
+const depthIndex = args.findIndex(arg => arg === '--depth' || arg === '-D');
+let customDepth = 3;
+if (depthIndex !== -1 && depthIndex + 1 < args.length) {
+    const val = parseInt(args[depthIndex + 1], 10);
+    if (!isNaN(val)) {
+        customDepth = val;
+    }
+}
+
+// Separate positional arguments (path) from options
+const cleanArgs = [];
+for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--depth' || args[i] === '-D') {
+        i++; // skip next arg (depth value)
+        continue;
+    }
+    if (args[i].startsWith('-')) {
+        continue; // skip option flags
+    }
+    cleanArgs.push(args[i]);
+}
+
+if (cleanArgs.length > 1) {
+    console.error(`${formatLabel('Error', ANSI.red)} Too many directory paths specified.`);
+    process.exit(1);
+}
+
+const targetPath = cleanArgs.length > 0 ? cleanArgs[0] : '.';
+
+// Options checking
+const shouldShowHelp = args.includes('--help') || args.includes('-h');
+const shouldInit = args.includes('--init');
+const shouldForce = args.includes('--force');
+const shouldDryRun = args.includes('--dry-run') || args.includes('-d');
+const shouldUpdate = args.includes('--update') || (!shouldInit && !shouldForce && !shouldShowHelp);
+const hasAction = shouldUpdate || shouldInit || shouldForce;
+
+const validOptions = new Set([
+    '--help', '-h',
+    '--init',
+    '--force',
+    '--update',
+    '--dry-run', '-d',
+    '--depth', '-D'
+]);
+
+const invalidOption = args.find(arg => arg.startsWith('-') && !validOptions.has(arg));
+if (invalidOption) {
+    console.error(`${formatLabel('Error', ANSI.red)} Option not available: ${colorize(invalidOption, ANSI.bold, ANSI.red)}`);
+    console.error('');
+    printHelp(console.error);
+    process.exit(1);
 }
 
 if (shouldShowHelp) {
@@ -64,13 +115,6 @@ if (shouldShowHelp) {
 }
 
 if (!hasAction) {
-    if (args.length > 0) {
-        const invalidCommand = args.find(arg => arg.startsWith('-')) || args[0];
-        console.error(`${formatLabel('Error', ANSI.red)} Command not available: ${colorize(invalidCommand, ANSI.bold, ANSI.red)}`);
-        console.error('');
-        printHelp(console.error);
-        process.exit(1);
-    }
     printHelp();
     process.exit(0);
 }
@@ -91,13 +135,21 @@ async function promptForTitleAndDescription() {
 }
 
 async function main() {
-    console.log(`${formatLabel('Info', ANSI.cyan)} Scanning for project files...`);
+    const targetDir = path.resolve(targetPath);
+    if (!fs.existsSync(targetDir)) {
+        console.error(`${formatLabel('Error', ANSI.red)} Directory does not exist: ${colorize(targetDir, ANSI.bold, ANSI.red)}`);
+        process.exit(1);
+    }
 
-    const targetDir = process.cwd();
+    if (!shouldDryRun) {
+        console.log(`${formatLabel('Info', ANSI.cyan)} Scanning for project files...`);
+    }
+
     const readmePath = path.join(targetDir, 'README.md');
     const packageJsonPath = path.join(targetDir, 'package.json');
     const requirementsPath = path.join(targetDir, 'requirements.txt');
     const licensePath = path.join(targetDir, 'LICENSE');
+
     const readmeExists = fs.existsSync(readmePath);
     const hasPackageJson = fs.existsSync(packageJsonPath);
     const hasRequirements = fs.existsSync(requirementsPath);
@@ -118,17 +170,19 @@ async function main() {
         process.exit(1);
     }
 
-    console.log(`${formatLabel('Info', ANSI.cyan)} Files found. Processing README...`);
+    if (!shouldDryRun) {
+        console.log(`${formatLabel('Info', ANSI.cyan)} Files found. Processing README...`);
+    }
 
-    if (shouldForce && readmeExists) {
+    if (shouldForce && readmeExists && !shouldDryRun) {
         fs.unlinkSync(readmePath);
     }
 
     const readmeContent = fs.existsSync(readmePath) ? fs.readFileSync(readmePath, 'utf-8') : '';
-    const fileTree = buildLocalFileTree(fs, path, targetDir, targetDir);
+    const fileTree = buildLocalFileTree(fs, path, targetDir, targetDir, [], 0, customDepth);
     const projectName = path.basename(targetDir);
     const licenseName = hasLicense ? getLicenseName(fs.readFileSync(licensePath, 'utf-8')) : '';
-    const shouldPromptMetadata = !shouldUpdate;
+    const shouldPromptMetadata = !shouldUpdate && !shouldDryRun;
     const { titleContent, descriptionContent } = shouldPromptMetadata
         ? await promptForTitleAndDescription()
         : { titleContent: '', descriptionContent: '' };
@@ -148,7 +202,7 @@ async function main() {
             titleContent,
             descriptionContent,
             licenseName,
-            username: packageJson.author || process.env.USERNAME || 'Unknown Author',
+            username: packageJson.author || process.env.USERNAME || process.env.USER || 'Unknown Author',
             projectName: packageJson.name || projectName,
             hasPackageJson: true,
             isMonorepo: false
@@ -165,7 +219,7 @@ async function main() {
             titleContent,
             descriptionContent,
             licenseName,
-            username: process.env.USERNAME || 'Unknown Author',
+            username: process.env.USERNAME || process.env.USER || 'Unknown Author',
             projectName,
             hasPackageJson: false,
             isMonorepo: false
@@ -175,13 +229,15 @@ async function main() {
 
     const updatedReadme = processReadme(readmeContent, projectType, context);
 
-    fs.writeFileSync(readmePath, updatedReadme, 'utf-8');
-
-    console.log(`${formatLabel('Success', ANSI.green)} README.md has been auto-fixed.`);
+    if (shouldDryRun) {
+        console.log(updatedReadme);
+    } else {
+        fs.writeFileSync(readmePath, updatedReadme, 'utf-8');
+        console.log(`${formatLabel('Success', ANSI.green)} README.md has been auto-fixed.`);
+    }
 }
 
-(main()
-    .catch(error => {
-        console.error(`${formatLabel('Error', ANSI.red)} An error occurred during processing: ${error.message}`);
-        process.exit(1);
-    }));
+main().catch(error => {
+    console.error(`${formatLabel('Error', ANSI.red)} An error occurred during processing: ${error.message}`);
+    process.exit(1);
+});
