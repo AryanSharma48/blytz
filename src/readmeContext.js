@@ -16,7 +16,16 @@ export const DEFAULT_IGNORED_NAMES = new Set([
     ".env",
     ".env.local",
     ".env.development",
-    ".env.production"
+    ".env.production",
+    ".next",
+    ".nuxt",
+    ".docusaurus",
+    "coverage",
+    "htmlcov",
+    ".sass-cache",
+    "bower_components",
+    ".turbo",
+    ".pnpm-store"
 ]);
 
 export function collectNodeDependencies(packages = []) {
