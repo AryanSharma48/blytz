@@ -182,6 +182,16 @@ async function main() {
     const fileTree = buildLocalFileTree(fs, path, targetDir, targetDir, [], 0, customDepth);
     const projectName = path.basename(targetDir);
     const licenseName = hasLicense ? getLicenseName(fs.readFileSync(licensePath, 'utf-8')) : '';
+
+    // Detect Alternative Node Package Managers
+    const hasYarnLock = fs.existsSync(path.join(targetDir, 'yarn.lock'));
+    const hasPnpmLock = fs.existsSync(path.join(targetDir, 'pnpm-lock.yaml'));
+    const hasBunLock = fs.existsSync(path.join(targetDir, 'bun.lockb')) || fs.existsSync(path.join(targetDir, 'bun.lock'));
+    let packageManager = "npm";
+    if (hasYarnLock) packageManager = "yarn";
+    else if (hasPnpmLock) packageManager = "pnpm";
+    else if (hasBunLock) packageManager = "bun";
+
     const shouldPromptMetadata = !shouldUpdate && !shouldDryRun;
     const { titleContent, descriptionContent } = shouldPromptMetadata
         ? await promptForTitleAndDescription()
@@ -205,7 +215,8 @@ async function main() {
             username: packageJson.author || process.env.USERNAME || process.env.USER || 'Unknown Author',
             projectName: packageJson.name || projectName,
             hasPackageJson: true,
-            isMonorepo: false
+            isMonorepo: false,
+            packageManager
         };
         projectType = 'node';
     } else {

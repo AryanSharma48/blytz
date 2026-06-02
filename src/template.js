@@ -11,6 +11,7 @@ export default function getDefaultContent(section, projectType, context = {}) {
         username = "Unknown",
         projectName = "this project",
         isMonorepo = false,
+        packageManager = "npm",
     } = context ?? {};
 
     const safeProjectType = projectType || "unknown";
@@ -20,9 +21,9 @@ export default function getDefaultContent(section, projectType, context = {}) {
         case "description":
             return getDescriptionContent(safeProjectType, projectName, isMonorepo, descriptionContent);
         case "installation":
-            return getInstallationContent(safeProjectType, packages, isMonorepo);
+            return getInstallationContent(safeProjectType, packages, isMonorepo, packageManager);
         case "usage":
-            return getUsageContent(safeProjectType, scripts, isMonorepo);
+            return getUsageContent(safeProjectType, scripts, isMonorepo, packageManager, packages);
         case "dependencies":
             return getDependenciesContent(dependencies, packages);
         case "folder structure":
@@ -52,7 +53,8 @@ function getDescriptionContent(projectType, projectName, isMonorepo, description
     return `${name} - Add a brief description of your project, its purpose, and what problem it solves.`;
 }
 
-function getInstallationContent(projectType, packages, isMonorepo) {
+function getInstallationContent(projectType, packages, isMonorepo, packageManager = "npm") {
+    const pm = packageManager;
     if (projectType === "node") {
         if (isMonorepo && packages.length > 1) {
             const packageList = packages
@@ -62,38 +64,72 @@ function getInstallationContent(projectType, packages, isMonorepo) {
                 })
                 .join("\n");
 
-            return `This is a monorepo with multiple packages:\n\n${packageList}\n\nTo install all dependencies:\n\n\`\`\`bash\n# Install root dependencies\nnpm install\n\n# Or install dependencies in each package\n${packages.map(pkg => {
+            let rootInstallCmd = "npm install";
+            if (pm === "yarn") rootInstallCmd = "yarn install";
+            else if (pm === "pnpm") rootInstallCmd = "pnpm install";
+            else if (pm === "bun") rootInstallCmd = "bun install";
+
+            const individualInstalls = packages.map(pkg => {
                 const dir = pkg.path === "package.json" ? "." : pkg.path.replace("/package.json", "");
-                return `cd ${dir} && npm install`;
-            }).join("\n")}\n\`\`\``;
+                let instCmd = "npm install";
+                if (pm === "yarn") instCmd = "yarn install";
+                else if (pm === "pnpm") instCmd = "pnpm install";
+                else if (pm === "bun") instCmd = "bun install";
+                return `cd ${dir} && ${instCmd}`;
+            }).join("\n");
+
+            return `This is a monorepo with multiple packages:\n\n${packageList}\n\nTo install all dependencies:\n\n\`\`\`bash\n# Install root dependencies\n${rootInstallCmd}\n\n# Or install dependencies in each package\n${individualInstalls}\n\`\`\``;
         }
-        return "Follow these steps to install the project:\n\n```bash\nnpm install\n```";
+
+        let installCmd = "npm install";
+        if (pm === "yarn") installCmd = "yarn";
+        else if (pm === "pnpm") installCmd = "pnpm install";
+        else if (pm === "bun") installCmd = "bun install";
+        return `Follow these steps to install the project:\n\n\`\`\`bash\n${installCmd}\n\`\`\``;
     }
     if (projectType === "python") return "Install dependencies using:\n\n```bash\npip install -r requirements.txt\n```";
     return "Add installation instructions here.";
 }
 
-function getUsageContent(projectType, scripts, isMonorepo) {
+function getUsageContent(projectType, scripts, isMonorepo, packageManager = "npm", packages = []) {
+    const pm = packageManager;
     if (projectType === "node") {
         if (scripts instanceof Map && scripts.size > 0) {
             const scriptEntries = [];
 
             for (const [name, locations] of scripts) {
+                let cmd = "";
+                if (name === "start") {
+                    if (pm === "yarn") cmd = "yarn start";
+                    else if (pm === "pnpm") cmd = "pnpm start";
+                    else if (pm === "bun") cmd = "bun start";
+                    else cmd = "npm start";
+                } else {
+                    if (pm === "yarn") cmd = `yarn ${name}`;
+                    else if (pm === "pnpm") cmd = `pnpm run ${name}`;
+                    else if (pm === "bun") cmd = `bun run ${name}`;
+                    else cmd = `npm run ${name}`;
+                }
+
                 if (isMonorepo && locations.length > 1) {
                     const packageNames = locations.map(l => l.package).join(", ");
-                    scriptEntries.push(`- \`npm run ${name}\` (available in: ${packageNames})`);
+                    scriptEntries.push(`- \`${cmd}\` (available in: ${packageNames})`);
                 } else if (locations.length === 1) {
                     const prefix = isMonorepo ? ` (in ${locations[0].package})` : "";
-                    const cmd = name === "start" ? "npm start" : `npm run ${name}`;
                     scriptEntries.push(`- \`${cmd}\`${prefix}`);
                 } else {
-                    scriptEntries.push(`- \`npm run ${name}\``);
+                    scriptEntries.push(`- \`${cmd}\``);
                 }
             }
 
             return `You can run the following scripts:\n\n${scriptEntries.join("\n")}`;
         }
-        return "Run the project using:\n\n```bash\nnpm start\n```";
+
+        let defaultStart = "npm start";
+        if (pm === "yarn") defaultStart = "yarn start";
+        else if (pm === "pnpm") defaultStart = "pnpm start";
+        else if (pm === "bun") defaultStart = "bun start";
+        return `Run the project using:\n\n\`\`\`bash\n${defaultStart}\n\`\`\``;
     }
     if (projectType === "python") return "Run the project using:\n\n```bash\npython main.py\n```";
     return "Add usage instructions here.";
