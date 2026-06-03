@@ -48,15 +48,58 @@ export function collectPythonDependencies(files = []) {
             continue;
         }
 
-        file.content
-            .split(/\r?\n/)
-            .map(line => line.trim())
-            .filter(line => line && !line.startsWith("#"))
-            .filter(line => !line.startsWith("-"))
-            .map(line => line.split(";")[0].trim())
-            .map(line => line.split(/[=<>!~]/)[0].trim())
-            .filter(Boolean)
-            .forEach(dependency => dependencies.add(dependency));
+        const isReq = typeof file.path === "string" && file.path.endsWith("requirements.txt");
+        const isPyproject = typeof file.path === "string" && file.path.endsWith("pyproject.toml");
+        const isPipfile = typeof file.path === "string" && file.path.endsWith("Pipfile");
+
+        if (isReq || (!isPyproject && !isPipfile)) {
+            file.content
+                .split(/\r?\n/)
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith("#"))
+                .filter(line => !line.startsWith("-"))
+                .map(line => line.split(";")[0].trim())
+                .map(line => line.split(/[=<>!~]/)[0].trim())
+                .filter(Boolean)
+                .forEach(dependency => dependencies.add(dependency));
+        } else {
+            // pyproject.toml or Pipfile dependency parsing
+            const lines = file.content.split(/\r?\n/);
+            let inSection = false;
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith("#") || !line) continue;
+
+                // Section headers checking
+                if (line.startsWith("[tool.poetry.dependencies]") ||
+                    line.startsWith("[project.dependencies]") ||
+                    line.startsWith("[packages]") ||
+                    line.startsWith("[dev-packages]") ||
+                    line.startsWith("dependencies = [")) {
+                    inSection = true;
+                    continue;
+                }
+
+                if (line.startsWith("[") && !line.includes("dependencies") && !line.includes("packages")) {
+                    inSection = false;
+                }
+
+                if (inSection) {
+                    if (line === "]" || line === ")") {
+                        inSection = false;
+                        continue;
+                    }
+                    if (line.startsWith('"') || line.startsWith("'")) {
+                        const clean = line.replace(/['",]/g, '').trim();
+                        const dep = clean.split(/[=<>!~;]/)[0].trim();
+                        if (dep && dep !== "python") dependencies.add(dep);
+                    } else if (line.includes("=")) {
+                        const dep = line.split("=")[0].trim();
+                        if (dep && dep !== "python") dependencies.add(dep);
+                    }
+                }
+            }
+        }
     }
 
     return Array.from(dependencies).sort((left, right) => left.localeCompare(right));
@@ -64,13 +107,14 @@ export function collectPythonDependencies(files = []) {
 
 export function collectScripts(packages = []) {
     const scripts = new Map();
+    const ALLOWED_SCRIPTS = new Set(["start", "dev", "build", "test", "lint"]);
 
     for (const pkg of packages) {
         const packageDir = pkg.path === "package.json" ? "(root)" : pkg.path.replace("/package.json", "");
 
         for (const [name, command] of Object.entries(pkg?.content?.scripts || {})) {
 
-            if(name !=="start"){
+            if (!ALLOWED_SCRIPTS.has(name)) {
                 continue;
             }
 

@@ -148,11 +148,15 @@ async function main() {
     const readmePath = path.join(targetDir, 'README.md');
     const packageJsonPath = path.join(targetDir, 'package.json');
     const requirementsPath = path.join(targetDir, 'requirements.txt');
+    const pyprojectPath = path.join(targetDir, 'pyproject.toml');
+    const pipfilePath = path.join(targetDir, 'Pipfile');
     const licensePath = path.join(targetDir, 'LICENSE');
 
     const readmeExists = fs.existsSync(readmePath);
     const hasPackageJson = fs.existsSync(packageJsonPath);
     const hasRequirements = fs.existsSync(requirementsPath);
+    const hasPyproject = fs.existsSync(pyprojectPath);
+    const hasPipfile = fs.existsSync(pipfilePath);
     const hasLicense = fs.existsSync(licensePath);
 
     if (!readmeExists && !shouldInit && !shouldForce) {
@@ -165,8 +169,8 @@ async function main() {
         process.exit(1);
     }
 
-    if (!hasPackageJson && !hasRequirements) {
-        console.error(`${formatLabel('Error', ANSI.red)} No ${colorize('package.json', ANSI.bold)} or ${colorize('requirements.txt', ANSI.bold)} found in this directory.`);
+    if (!hasPackageJson && !hasRequirements && !hasPyproject && !hasPipfile) {
+        console.error(`${formatLabel('Error', ANSI.red)} No package metadata file (package.json, requirements.txt, pyproject.toml, or Pipfile) found in this directory.`);
         process.exit(1);
     }
 
@@ -220,11 +224,20 @@ async function main() {
         };
         projectType = 'node';
     } else {
-        const requirementsContent = fs.readFileSync(requirementsPath, 'utf-8');
+        const packages = [];
+        if (hasRequirements) {
+            packages.push({ path: 'requirements.txt', content: fs.readFileSync(requirementsPath, 'utf-8') });
+        }
+        if (hasPyproject) {
+            packages.push({ path: 'pyproject.toml', content: fs.readFileSync(pyprojectPath, 'utf-8') });
+        }
+        if (hasPipfile) {
+            packages.push({ path: 'Pipfile', content: fs.readFileSync(pipfilePath, 'utf-8') });
+        }
 
         context = {
-            packages: [{ path: 'requirements.txt', content: requirementsContent }],
-            dependencies: collectPythonDependencies([{ path: 'requirements.txt', content: requirementsContent }]),
+            packages,
+            dependencies: collectPythonDependencies(packages),
             scripts: new Map(),
             fileTree,
             titleContent,

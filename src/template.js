@@ -87,7 +87,18 @@ function getInstallationContent(projectType, packages, isMonorepo, packageManage
         else if (pm === "bun") installCmd = "bun install";
         return `Follow these steps to install the project:\n\n\`\`\`bash\n${installCmd}\n\`\`\``;
     }
-    if (projectType === "python") return "Install dependencies using:\n\n```bash\npip install -r requirements.txt\n```";
+    if (projectType === "python") {
+        const hasPipfile = packages.some(p => typeof p.path === "string" && p.path.endsWith("Pipfile"));
+        const hasPyproject = packages.some(p => typeof p.path === "string" && p.path.endsWith("pyproject.toml"));
+
+        if (hasPipfile) {
+            return "Install dependencies using Pipenv:\n\n```bash\npipenv install\n```";
+        }
+        if (hasPyproject) {
+            return "Install dependencies using Poetry:\n\n```bash\npoetry install\n```";
+        }
+        return "Install dependencies using:\n\n```bash\npip install -r requirements.txt\n```";
+    }
     return "Add installation instructions here.";
 }
 
@@ -131,7 +142,17 @@ function getUsageContent(projectType, scripts, isMonorepo, packageManager = "npm
         else if (pm === "bun") defaultStart = "bun start";
         return `Run the project using:\n\n\`\`\`bash\n${defaultStart}\n\`\`\``;
     }
-    if (projectType === "python") return "Run the project using:\n\n```bash\npython main.py\n```";
+    if (projectType === "python") {
+        const hasPyproject = packages.some(p => typeof p.path === "string" && p.path.endsWith("pyproject.toml"));
+        const hasPipfile = packages.some(p => typeof p.path === "string" && p.path.endsWith("Pipfile"));
+        if (hasPyproject) {
+            return "Run the project using Poetry:\n\n```bash\npoetry run python main.py\n```";
+        }
+        if (hasPipfile) {
+            return "Run the project using Pipenv:\n\n```bash\npipenv run python main.py\n```";
+        }
+        return "Run the project using:\n\n```bash\npython main.py\n```";
+    }
     return "Add usage instructions here.";
 }
 
