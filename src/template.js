@@ -30,8 +30,15 @@ export default function getDefaultContent(section, projectType, context = {}) {
             return getFolderStructureContent(fileTree);
         case "license":
             return getLicenseContent(licenseName);
-        case "built by":
-            return `Built with ❤️ by @${(username || "Unknown").trim()}`;
+        case "built by": {
+            let formattedAuthor = (username || "Unknown").trim();
+            if (formattedAuthor.includes("<")) {
+                formattedAuthor = formattedAuthor.split("<")[0].trim();
+            }
+            const isGithubHandle = /^[a-zA-Z0-9-]{1,39}$/.test(formattedAuthor);
+            const displayAuthor = isGithubHandle ? `@${formattedAuthor}` : formattedAuthor;
+            return `Built with ❤️ by ${displayAuthor}`;
+        }
         default:
             return "";
     }

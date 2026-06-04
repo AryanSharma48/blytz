@@ -22,10 +22,11 @@ export default function processReadme(content, projectType, context = {}) {
     // Parse sections
     sections.slice(1).forEach(section => {
         const lines = section.split("\n");
-        const title = lines[0].trim().toLowerCase();
+        const titleOriginal = lines[0].trim();
+        const titleLower = titleOriginal.toLowerCase();
         const body = lines.slice(1).join("\n").trim();
 
-        sectionMap[title] = body;
+        sectionMap[titleLower] = { originalTitle: titleOriginal, body };
     });
 
     // Required sections
@@ -49,38 +50,41 @@ export default function processReadme(content, projectType, context = {}) {
     // Diff function
     const isDifferent = (a = "", b = "") => a.trim() !== b.trim();
 
-    // Add / update sections
-    requiredSections.forEach(section => {
-        const newContent = getDefaultContent(section, projectType, context);
-        const currentContent = (sectionMap[section] || "").trim();
-
-        if (!currentContent) {
-            sectionMap[section] = newContent;
-        } else if (autoManaged.includes(section)) {
-            if (isDifferent(currentContent, newContent)) {
-                sectionMap[section] = newContent;
-            }
-        }
-    });
-
     // Format title
     const formatTitle = (title) =>
         title.split(" ")
             .map(word => word[0].toUpperCase() + word.slice(1))
             .join(" ");
 
+    // Add / update sections
+    requiredSections.forEach(section => {
+        const newContent = getDefaultContent(section, projectType, context);
+        const entry = sectionMap[section];
+        const currentContent = entry ? entry.body.trim() : "";
+
+        if (!currentContent) {
+            sectionMap[section] = { originalTitle: formatTitle(section), body: newContent };
+        } else if (autoManaged.includes(section)) {
+            if (isDifferent(currentContent, newContent)) {
+                sectionMap[section] = { originalTitle: entry.originalTitle || formatTitle(section), body: newContent };
+            }
+        }
+    });
+
     // Rebuild README
     let newReadme = finalIntro ? finalIntro + "\n\n" : "";
 
     // Ordered sections
     requiredSections.forEach(section => {
-        newReadme += `## ${formatTitle(section)}\n\n${sectionMap[section]}\n\n`;
+        const entry = sectionMap[section];
+        newReadme += `## ${entry.originalTitle}\n\n${entry.body}\n\n`;
     });
 
     // Extra sections (preserve user content)
     Object.keys(sectionMap).forEach(section => {
         if (!requiredSections.includes(section)) {
-            newReadme += `## ${formatTitle(section)}\n\n${sectionMap[section]}\n\n`;
+            const entry = sectionMap[section];
+            newReadme += `## ${entry.originalTitle}\n\n${entry.body}\n\n`;
         }
     });
 

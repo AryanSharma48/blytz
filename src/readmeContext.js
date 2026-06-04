@@ -130,12 +130,27 @@ export function collectScripts(packages = []) {
 }
 
 export function getLicenseName(licenseContent = "") {
-    const firstLine = licenseContent
+    const lines = licenseContent
         .split(/\r?\n/)
         .map(line => line.trim())
-        .find(Boolean);
+        .filter(Boolean);
 
-    return firstLine || "";
+    if (lines.length === 0) return "";
+
+    // Search for common license headers by joining the first 10 lines
+    const fullText = lines.slice(0, 10).join("\n");
+    if (/MIT/i.test(fullText)) return "MIT License";
+    if (/Apache/i.test(fullText)) {
+        if (/2\.0/.test(fullText)) return "Apache License 2.0";
+        return "Apache License";
+    }
+    if (/GPL/i.test(fullText)) {
+        if (/3/i.test(fullText)) return "GPLv3 License";
+        return "GPL License";
+    }
+    if (/BSD/i.test(fullText)) return "BSD License";
+
+    return lines[0];
 }
 
 function escapeRegex(value) {
