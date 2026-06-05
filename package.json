@@ -15,7 +15,8 @@
   "scripts": {
     "start": "node server/server.js",
     "prepublishOnly": "node scripts/sync-readme.js prepublish",
-    "postpublish": "node scripts/sync-readme.js postpublish"
+    "postpublish": "node scripts/sync-readme.js postpublish",
+    "test": "node --test tests/**/*.test.js"
   },
   "keywords": [
     "blytz",
