@@ -35,7 +35,9 @@ async function findProjectFiles(octokit, owner, repo) {
         const requirementsPaths = treeData.tree
             .filter(item =>
                 item.type === "blob" &&
-                item.path.endsWith("requirements.txt") &&
+                (item.path.endsWith("requirements.txt") ||
+                 item.path.endsWith("pyproject.toml") ||
+                 item.path.endsWith("Pipfile")) &&
                 !item.path.includes("node_modules/") &&
                 !item.path.includes(".git/") &&
                 !item.path.includes("venv/") &&
@@ -166,22 +168,45 @@ export async function runBot(payload) {
         const content = Buffer.from(data.content, "base64").toString();
         const gitignoreRules = treeData ? await fetchGitignoreRules(octokit, owner, repo, treeData) : [];
         const fileTree = treeData ? buildRemoteFileTree(treeData, gitignoreRules) : null;
+        
         const packages = packageJsonPaths.length > 0
             ? (await Promise.all(packageJsonPaths.map(path => fetchPackageJson(octokit, owner, repo, path))))
                 .filter(pkg => pkg.content !== null)
             : [];
+        
         const requirementFiles = packages.length === 0 && requirementsPaths.length > 0
             ? (await Promise.all(requirementsPaths.map(path => fetchRequirementsFile(octokit, owner, repo, path))))
                 .filter(file => file.content !== null)
             : [];
+        
         const isNodeProject = packages.length > 0;
         const isPythonProject = !isNodeProject && requirementFiles.length > 0;
+        
         const dependencies = isNodeProject
             ? collectNodeDependencies(packages)
             : collectPythonDependencies(requirementFiles);
+            
         const scripts = isNodeProject ? collectScripts(packages) : new Map();
         const projectType = isNodeProject ? "node" : (isPythonProject ? "python" : "unknown");
-        const licenseName = await fetchLicenseName(octokit, owner, repo, treeData);
+
+        // Remote package manager detection
+        const hasYarnLock = treeData?.tree?.some(item => item.path === "yarn.lock");
+        const hasPnpmLock = treeData?.tree?.some(item => item.path === "pnpm-lock.yaml");
+        const hasBunLock = treeData?.tree?.some(item => item.path === "bun.lockb" || item.path === "bun.lock");
+        let packageManager = "npm";
+        if (hasYarnLock) packageManager = "yarn";
+        else if (hasPnpmLock) packageManager = "pnpm";
+        else if (hasBunLock) packageManager = "bun";
+
+        // License fallback
+        let licenseName = await fetchLicenseName(octokit, owner, repo, treeData);
+        if (!licenseName && packages.length > 0) {
+            const rootPkg = packages.find(pkg => pkg.path === "package.json");
+            if (rootPkg && rootPkg.content?.license) {
+                const pkgLicense = rootPkg.content.license;
+                licenseName = typeof pkgLicense === "object" ? (pkgLicense.type || "") : pkgLicense;
+            }
+        }
 
         const context = {
             packages: isNodeProject ? packages : requirementFiles,
@@ -192,6 +217,7 @@ export async function runBot(payload) {
             username: owner,
             projectName: repo,
             isMonorepo: isNodeProject && packages.length > 1,
+            packageManager
         };
 
         const newReadme = processReadme(content, projectType, context);
@@ -201,16 +227,94 @@ export async function runBot(payload) {
             return;
         }
 
+        // --- PULL REQUEST WORKFLOW ---
+        const branchName = "blytz-readme-update";
+        const { data: repoData } = await octokit.request("GET /repos/{owner}/{repo}", { owner, repo });
+        const defaultBranch = repoData.default_branch;
+
+        // Get default branch SHA
+        const { data: refData } = await octokit.request("GET /repos/{owner}/{repo}/git/ref/heads/{ref}", {
+            owner,
+            repo,
+            ref: defaultBranch,
+        });
+        const baseSha = refData.object.sha;
+
+        // Check if branch already exists
+        let branchExists = false;
+        try {
+            await octokit.request("GET /repos/{owner}/{repo}/git/ref/heads/{ref}", {
+                owner,
+                repo,
+                ref: branchName,
+            });
+            branchExists = true;
+        } catch (e) {
+            // Branch doesn't exist
+        }
+
+        if (!branchExists) {
+            await octokit.request("POST /repos/{owner}/{repo}/git/refs", {
+                owner,
+                repo,
+                ref: `refs/heads/${branchName}`,
+                sha: baseSha,
+            });
+        }
+
+        let readmeSha = data.sha;
+        if (branchExists) {
+            try {
+                const { data: branchReadmeData } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+                    owner,
+                    repo,
+                    path: "README.md",
+                    ref: branchName,
+                });
+                const branchContent = Buffer.from(branchReadmeData.content, "base64").toString();
+                if (branchContent === newReadme) {
+                    console.log("Branch already has the updated README");
+                    return;
+                }
+                readmeSha = branchReadmeData.sha;
+            } catch (err) {
+                // If it doesn't exist on branch yet, fall back to base
+            }
+        }
+
+        // Commit content to new branch
         await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}", {
             owner,
             repo,
             path: "README.md",
-            message: "Auto-update README",
+            message: "docs: Auto-update README.md",
             content: Buffer.from(newReadme).toString("base64"),
-            sha: data.sha,
+            sha: readmeSha,
+            branch: branchName,
         });
 
-        console.log("README updated successfully");
+        // Check if open PR already exists
+        const { data: pulls } = await octokit.request("GET /repos/{owner}/{repo}/pulls", {
+            owner,
+            repo,
+            head: `${owner}:${branchName}`,
+            base: defaultBranch,
+            state: "open",
+        });
+
+        if (pulls.length === 0) {
+            await octokit.request("POST /repos/{owner}/{repo}/pulls", {
+                owner,
+                repo,
+                title: "docs: Auto-update README.md",
+                body: "This is an automated pull request from **Blytz** to keep your README.md synchronized with your project metadata and codebase structure.",
+                head: branchName,
+                base: defaultBranch,
+            });
+            console.log("Pull Request created successfully");
+        } else {
+            console.log("README updated on branch; Pull Request already exists");
+        }
 
     } catch (err) {
         console.error("Bot error:", err.message);

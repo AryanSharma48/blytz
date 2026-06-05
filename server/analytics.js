@@ -10,6 +10,22 @@ const DEFAULT_DATA = {
     events: []
 };
 
+// Queue for serializing read-modify-write database operations to prevent race conditions
+let executionQueue = Promise.resolve();
+
+async function enqueue(operation) {
+    return new Promise((resolve, reject) => {
+        executionQueue = executionQueue.then(async () => {
+            try {
+                const result = await operation();
+                resolve(result);
+            } catch (err) {
+                reject(err);
+            }
+        });
+    });
+}
+
 async function ensureDataDir() {
     const dir = path.dirname(DATA_FILE);
     try {
@@ -41,59 +57,68 @@ async function writeData(data) {
 }
 
 export async function trackInstall(installationId, accountLogin, accountType) {
-    const data = await readData();
+    return enqueue(async () => {
+        const data = await readData();
 
-    const exists = data.installs.some(i => i.installationId === installationId);
-    if (!exists) {
-        data.installs.push({
-            installationId,
-            accountLogin,
-            accountType,
-            installedAt: new Date().toISOString()
-        });
-        await writeData(data);
-    }
+        const exists = data.installs.some(i => i.installationId === installationId);
+        if (!exists) {
+            data.installs.push({
+                installationId,
+                accountLogin,
+                accountType,
+                installedAt: new Date().toISOString()
+            });
+            await writeData(data);
+        }
 
-    return !exists;
+        return !exists;
+    });
 }
 
 export async function trackUninstall(installationId) {
-    const data = await readData();
-    const initialLength = data.installs.length;
+    return enqueue(async () => {
+        const data = await readData();
+        const initialLength = data.installs.length;
 
-    data.installs = data.installs.filter(i => i.installationId !== installationId);
+        data.installs = data.installs.filter(i => i.installationId !== installationId);
 
-    if (data.installs.length !== initialLength) {
-        await writeData(data);
-        return true;
-    }
-    return false;
+        if (data.installs.length !== initialLength) {
+            await writeData(data);
+            return true;
+        }
+        return false;
+    });
 }
 
 export async function trackEvent(eventType, payload = {}) {
-    const data = await readData();
+    return enqueue(async () => {
+        const data = await readData();
 
-    data.events.push({
-        type: eventType,
-        payload,
-        timestamp: new Date().toISOString()
+        data.events.push({
+            type: eventType,
+            payload,
+            timestamp: new Date().toISOString()
+        });
+
+        await writeData(data);
     });
-
-    await writeData(data);
 }
 
 export async function getStats() {
-    const data = await readData();
+    // Reading statistics doesn't modify data, but reading through the queue ensures we don't read partial data during writes
+    return enqueue(async () => {
+        const data = await readData();
 
-    const eventCounts = data.events.reduce((acc, e) => {
-        acc[e.type] = (acc[e.type] || 0) + 1;
-        return acc;
-    }, {});
+        const eventCounts = data.events.reduce((acc, e) => {
+            acc[e.type] = (acc[e.type] || 0) + 1;
+            return acc;
+        }, {});
 
-    return {
-        totalInstalls: data.installs.length,
-        totalEvents: data.events.length,
-        eventsByType: eventCounts,
-        recentEvents: data.events.slice(-10).reverse()
-    };
+        return {
+            totalInstalls: data.installs.length,
+            totalEvents: data.events.length,
+            eventsByType: eventCounts,
+            recentEvents: data.events.slice(-10).reverse()
+        };
+    });
 }

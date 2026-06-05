@@ -185,7 +185,9 @@ async function main() {
     const readmeContent = fs.existsSync(readmePath) ? fs.readFileSync(readmePath, 'utf-8') : '';
     const fileTree = buildLocalFileTree(fs, path, targetDir, targetDir, [], 0, customDepth);
     const projectName = path.basename(targetDir);
-    const licenseName = hasLicense ? getLicenseName(fs.readFileSync(licensePath, 'utf-8')) : '';
+
+    // Resolve License Name
+    let licenseName = hasLicense ? getLicenseName(fs.readFileSync(licensePath, 'utf-8')) : '';
 
     // Detect Alternative Node Package Managers
     const hasYarnLock = fs.existsSync(path.join(targetDir, 'yarn.lock'));
@@ -203,9 +205,22 @@ async function main() {
     let context;
     let projectType;
 
+    const getPkgLicense = (pkg) => {
+        if (!pkg?.license) return '';
+        if (typeof pkg.license === 'string') return pkg.license;
+        if (typeof pkg.license === 'object') return pkg.license.type || '';
+        return '';
+    };
+
     if (hasPackageJson) {
         const packageJsonData = fs.readFileSync(packageJsonPath, 'utf-8');
         const packageJson = JSON.parse(packageJsonData);
+
+        if (!licenseName) {
+            licenseName = getPkgLicense(packageJson);
+        }
+
+        const usernameVal = packageJson.author || process.env.USERNAME || process.env.USER || 'Unknown Author';
 
         context = {
             packageJson,
@@ -216,7 +231,7 @@ async function main() {
             titleContent,
             descriptionContent,
             licenseName,
-            username: packageJson.author || process.env.USERNAME || process.env.USER || 'Unknown Author',
+            username: typeof usernameVal === 'object' ? (usernameVal.name || 'Unknown Author') : usernameVal,
             projectName: packageJson.name || projectName,
             hasPackageJson: true,
             isMonorepo: false,
