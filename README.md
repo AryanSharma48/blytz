@@ -45,11 +45,14 @@ Project structure:
 │   ├── bot.js
 │   ├── github.js
 │   └── server.js
-└── src
-    ├── fileTree.js
-    ├── processReadme.js
-    ├── readmeContext.js
-    └── template.js
+├── src
+│   ├── fileTree.js
+│   ├── processReadme.js
+│   ├── readmeContext.js
+│   └── template.js
+└── tests
+    ├── processReadme.test.js
+    └── readmeContext.test.js
 ```
 
 ## License
